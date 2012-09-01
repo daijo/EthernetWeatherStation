@@ -86,7 +86,7 @@ DHT dht(DHTPIN, DHTTYPE);
  */
 unsigned long lastConnectionTime = 0;          // last time you connected to the server, in milliseconds
 boolean lastConnected = false;                 // state of the connection last time through the main loop
-const uint32_t postingInterval = 60*1000;      //delay between updates to Cosm.com
+const uint32_t postingInterval = 10*1000;      //delay between updates to Cosm.com
 
 /*
  * Method declarations
