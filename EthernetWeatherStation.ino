@@ -35,6 +35,7 @@
  * Physical constants and calculations
  */
 #include <math.h>
+#include <stdint.h>
 
 #define GRAVITY 9.81
 #define GAS_CONSTANT 8.3144621
@@ -85,14 +86,14 @@ DHT dht(DHTPIN, DHTTYPE);
  */
 unsigned long lastConnectionTime = 0;          // last time you connected to the server, in milliseconds
 boolean lastConnected = false;                 // state of the connection last time through the main loop
-const unsigned long postingInterval = 10*60*1000; //delay between updates to Cosm.com
+const uint32_t postingInterval = 60*1000;      //delay between updates to Cosm.com
 
 /*
  * Method declarations
  */
 void measureAndSend();
 void sendData(String dataStream, String dataString);
-float getPressure_MSLP_hPa(int32_t altitude, float temperature);
+float getPressure_MSLP_hPa(uint32_t altitude, float temperature);
 String doubleToString(double value, char* buffer);
 
 /*
@@ -156,6 +157,8 @@ void measureAndSend()
   sendData("01", doubleToString(temp, buffer));
   sendData("02", doubleToString(humidity, buffer));
   sendData("03", doubleToString(pressure, buffer));
+
+  free(buffer);
 }
 
 /*
@@ -205,7 +208,7 @@ void sendData(String dataStream, String dataString) {
 /*
  * Sensor methods
  */
-float getPressure_MSLP_hPa(int32_t altitude, float temperature)
+float getPressure_MSLP_hPa(uint32_t altitude, float temperature)
 {
   // temperature should be the mean from sea level, can approximate?
   int32_t pressurePa = bmp.readPressure();
