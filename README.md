@@ -24,11 +24,12 @@ Add a 10K resistor between pin 2 and pin 1 of the DHT
 # Build process
 ## Using the Makefile
 
-    export STATION_ELEVATION=27 // station elevation in meters
-    export APIKEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX // your cosm api key
-    export FEEDID=XXXXX // your feed ID
-    export USERAGENT="Shibuya Weather Station" // user agent is the project name
-    export MAC_ADDRESS="0x90, 0xA2, 0xDA, 0x00, 0x75, 0xED" // byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x75, 0xED};
+    export STATION_ELEVATION=27 // Station elevation in meters, for MSLP calculation
+    export APIKEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    export FEEDID=XXXXX
+    export USERAGENT="Shibuya Weather Station"
+    export MAC_ADDRESS="0x90, 0xA2, 0xDA, 0x00, 0x75, 0xED"
+    export IP_ADDRESS="10,0,1,20"
 
     export ARDUINODIR=/home/daijo/arduino-1.0.1/
     export SERIALDEV=/dev/ttyUSB0
