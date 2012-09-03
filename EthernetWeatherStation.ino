@@ -31,6 +31,8 @@
  
 */
 
+#define STRING_CONSTANT(x) #x
+
 /*
  * Physical constants and calculations
  */
@@ -44,24 +46,24 @@
 #define STATION_ELEVATION 27
 
 /*
- * Networking
+ * Networking & Cosm
  */
 #include <SPI.h>
 #include <Ethernet.h>
+#include <Cosm.h>
+#include <MsTimer2.h>
 
-// MAC address for the ethernet controller.
 byte mac[] = {MAC_ADDRESS};
-
-// fill in an available IP address on your network here,
-// for manual configuration:
 IPAddress ip(IP_ADDRESS);
-// initialize the library instance:
-EthernetClient client;
+char apiKey[] = STRING_CONSTANT(APIKEY);
+long feedId = FEEDID;
+char datastreamId1[] = "01";
+char datastreamId2[] = "02";
+char datastreamId3[] = "03";
 
-// if you don't want to use DNS (and reduce your sketch size)
-// use the numeric IP instead of the name for the server:
-//IPAddress server(216,52,233,121);      // numeric IP for api.cosm.com
-char server[] = "api.cosm.com";   // name address for cosm API
+uint32_t secondsSinceLastPost = 0;
+
+CosmClient client = CosmClient(apiKey);
 
 /*
  * Adafruit BMP085 sensor
@@ -82,18 +84,12 @@ Adafruit_BMP085 bmp;
 DHT dht(DHTPIN, DHTTYPE);
 
 /*
- * Connection State
- */
-unsigned long lastConnectionTime = 0;          // last time you connected to the server, in milliseconds
-boolean lastConnected = false;                 // state of the connection last time through the main loop
-const uint32_t postingInterval = 10*1000;      //delay between updates to Cosm.com
-
-/*
  * Method declarations
  */
 void measureAndSend();
-void sendData(String dataStream, String dataString);
-float getPressure_MSLP_hPa(uint32_t altitude, float temperature);
+void startTimer();
+void tick();
+double getPressure_MSLP_hPa(uint32_t altitude, double temperature);
 String doubleToString(double value, char* buffer);
 
 /*
@@ -109,113 +105,57 @@ void setup() {
   // Setup BMP085
   bmp.begin();  
   
-  // start the Ethernet connection:
-  if (Ethernet.begin(mac) == 0) {
-    Serial.println("Failed to configure Ethernet using DHCP");
-    // DHCP failed, so use a fixed IP address:
-    Ethernet.begin(mac, ip);
+  // Setup Cosm
+  if (client.connectWithMac(mac)) {
+    startTimer();
+  } else {
+    // DHCP failed, try static IP
+    if (client.connectWithIP(mac, ip)) {
+      startTimer();
+    }
   }
 }
 
-void loop() {  
-
-  // if there's incoming data from the net connection.
-  // send it out the serial port.  This is for debugging
-  // purposes only:
-  if (client.available()) {
-    char c = client.read();
-    Serial.print(c);
-  }
-
-  // if there's no net connection, but there was one last time
-  // through the loop, then stop the client:
-  if (!client.connected() && lastConnected) {
-    Serial.println();
-    Serial.println("disconnecting.");
-    client.stop();
-  }
-
-  // if you're not connected, and ten seconds have passed since
-  // your last connection, then connect again and send data:
-  if(!client.connected() && (millis() - lastConnectionTime > postingInterval)) {
-    measureAndSend();
-  }
-  
-  // store the state of the connection for next time through
-  // the loop:
-  lastConnected = client.connected();
-}
-
-void measureAndSend()
-{
-  char* buffer = (char*)malloc(10);
-  
-  float temp = dht.readTemperature();
-  float humidity = dht.readHumidity();
-  float pressure = getPressure_MSLP_hPa(STATION_ELEVATION, temp);
-  
-  sendData("01", doubleToString(temp, buffer));
-  sendData("02", doubleToString(humidity, buffer));
-  sendData("03", doubleToString(pressure, buffer));
-
-  free(buffer);
-}
+void loop() {}
 
 /*
- * Networking methods
+ * Timing
  */
-// this method makes a HTTP connection to the server:
-void sendData(String dataStream, String dataString) {
-  // if there's a successful connection:
-  if (client.connect(server, 80)) {
-    Serial.println("connecting...");
-    // send the HTTP PUT request:
-    client.print("PUT /v2/feeds/");
-    client.print("FEEDID");
-    client.println(".csv HTTP/1.1");
-    client.println("Host: api.cosm.com");
-    client.print("X-ApiKey: ");
-    client.println("APIKEY");
-    client.print("User-Agent: ");
-    client.println("USERAGENT");
-    client.print("Content-Length: ");
+void startTimer()
+{
+  MsTimer2::set(1000, tick);
+  MsTimer2::start();
+}
 
-    // calculate the length of the sensor reading in bytes:
-    int thisLength = dataStream.length() + 1 + dataString.length();
-    client.println(thisLength);
-
-    // last pieces of the HTTP PUT request:
-    client.println("Content-Type: text/csv");
-    client.println("Connection: close");
-    client.println();
-
-    // here's the actual content of the PUT request:
-    client.print(dataStream+",");
-    client.println(dataString);
-  
-  } 
-  else {
-    // if you couldn't make a connection:
-    Serial.println("connection failed");
-    Serial.println();
-    Serial.println("disconnecting.");
-    client.stop();
+void tick()
+{
+  if (secondsSinceLastPost > 600) {
+    secondsSinceLastPost = 0;
+    measureAndSend();
   }
-   // note the time that the connection was made or attempted:
-  lastConnectionTime = millis();
+  secondsSinceLastPost++;
 }
 
 /*
  * Sensor methods
  */
-float getPressure_MSLP_hPa(uint32_t altitude, float temperature)
+void measureAndSend()
+{
+  
+  double temp = dht.readTemperature();
+  double humidity = dht.readHumidity();
+  double pressure = getPressure_MSLP_hPa(STATION_ELEVATION, temp);
+  
+
+  client.updateFeed(feedId, datastreamId1, temp);
+  client.updateFeed(feedId, datastreamId2, humidity);
+  client.updateFeed(feedId, datastreamId3, pressure);
+}
+
+double getPressure_MSLP_hPa(uint32_t altitude, double temperature)
 {
   // temperature should be the mean from sea level, can approximate?
   int32_t pressurePa = bmp.readPressure();
   int32_t MSLP_Pa = pressurePa * exp((GRAVITY*altitude)/(GAS_CONSTANT*(temperature+KELVIN)));
-  return MSLP_Pa / 100.0; }
- 
-String doubleToString(double value, char* buffer) {
-   
-  return String(dtostrf(value, 3, 2, buffer));
+  return MSLP_Pa / 100.0;
 }
