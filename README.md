@@ -49,6 +49,8 @@ Once powered on the Ethernet Weather Station will try to get an IP address via D
  * [Adafruit BMP085 library][5] - BSD License, Copyright (c) Limor Fried/Ladyada for Adafruit Industries.
  * [Adafruit DHT library][5] - MIT License, Copyright (c) Adafruit Industries.
  * Ethernet Weather Station - BSD License, Copyright (c) 2012, Daniel Hjort
+ * [Pachube Arduino library][7] - Copyright (c) 2012, blawson
+ * [MsTimer2 library][8] - LGPL, Copyright (c) 2008, Javier Valencia
 
   [1]: https://www.adafruit.com/products/418 "Arduino Uno Ethernet"
   [2]: https://www.adafruit.com/products/385 "DHT22"
@@ -56,3 +58,5 @@ Once powered on the Ethernet Weather Station will try to get an IP address via D
   [4]: http://arduino.cc/en/Tutorial/PachubeCient "Pachube Client"
   [5]: https://github.com/adafruit/Adafruit-BMP085-Library "Adafruit BMP085 library"
   [6]: https://github.com/adafruit/DHT-sensor-library "Adafruit DHT library"
+  [7]: https://github.com/blawson/PachubeArduino "Pachube Arduino library"
+  [8]: http://arduino.cc/playground/Main/MsTimer2 "MsTimer2 library"
