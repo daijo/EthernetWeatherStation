@@ -27,7 +27,6 @@ Add a 10K resistor between pin 2 and pin 1 of the DHT
     export STATION_ELEVATION=27 // Station elevation in meters, for MSLP calculation
     export APIKEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     export FEEDID=XXXXX
-    export USERAGENT="Shibuya Weather Station"
     export MAC_ADDRESS="0x90, 0xA2, 0xDA, 0x00, 0x75, 0xED"
     export IP_ADDRESS="10,0,1,20"
 
