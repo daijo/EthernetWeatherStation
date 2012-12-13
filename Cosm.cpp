@@ -65,7 +65,12 @@ bool CosmClient::connectViaGateway(byte macAddress[], IPAddress localIP, IPAddre
 }
 
 void CosmClient::updateFeed(uint32_t feedId, char datastreamId[], double dataToSend) {
-  if (_client.available()) {
+
+  Serial.begin(9600);
+
+  Serial.print("Update feed...");
+
+  while (_client.available()) {
     char c = _client.read();
     Serial.print(c);
   }
@@ -75,7 +80,8 @@ void CosmClient::updateFeed(uint32_t feedId, char datastreamId[], double dataToS
     _client.stop();
   }
 
-  if (!_client.connected() && (millis() - _lastConnMillis > _interval)) {
+  if (!_client.connected()) { // && (millis() - _lastConnMillis > _interval)) {
+    Serial.print("Send the data...");
     sendData(feedId, datastreamId, dataToSend);
     _lastConnMillis = millis();
   }
@@ -101,24 +107,44 @@ void CosmClient::sendData(uint32_t feedId, char datastreamId[], double dataToSen
     Serial.println("Connecting to Cosm...");
 
     _client.print("PUT /v2/feeds/");
+    Serial.print("PUT /v2/feeds/");
     _client.print(feedId);
+    Serial.print(feedId);
     _client.print("/datastreams/");
+    Serial.print("/datastreams/");
     _client.print(datastreamId);
+    Serial.print(datastreamId);
     _client.print(".csv HTTP/1.1\n");
+    Serial.print(".csv HTTP/1.1\n");
+
     _client.print("Host: api.cosm.com\n");
+    Serial.print("Host: api.cosm.com\n");
 
     _client.print("X-ApiKey: ");
+    Serial.print("X-ApiKey: ");
+
     _client.print(_api);
+    Serial.print(_api);
+
     _client.print("\n");
+    Serial.print("\n");
+
     _client.print("Content-Length: ");
+    Serial.print("Content-Length: ");
+
 
     int lengthOfData = getLength(dataToSend);
     _client.println(lengthOfData, DEC);
+    Serial.println(lengthOfData);
+
 
     _client.print("Content-Type: text/csv\n");
+    Serial.print("Content-Type: text/csv\n");
     _client.println("Connection: close\n");
+    Serial.print("Connection: close\n");
 
     _client.print(dataToSend, DEC);
+    Serial.print("Data sent.");
   }
 }
 

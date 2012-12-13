@@ -31,7 +31,8 @@
  
 */
 
-#define STRING_CONSTANT(x) #x
+#define Q(x) #x
+#define QUOTE(x) Q(x)
 
 /*
  * Physical constants and calculations
@@ -42,8 +43,7 @@
 #define GRAVITY 9.81
 #define GAS_CONSTANT 8.3144621
 #define KELVIN 273.15
-// 20m + 7m
-#define STATION_ELEVATION 27
+#define STATION_ELEVATION 36
 
 /*
  * Networking & Cosm
@@ -55,7 +55,7 @@
 
 byte mac[] = {MAC_ADDRESS};
 IPAddress ip(IP_ADDRESS);
-char apiKey[] = STRING_CONSTANT(APIKEY);
+char apiKey[] = QUOTE(APIKEY);
 long feedId = FEEDID;
 char datastreamId1[] = "01";
 char datastreamId2[] = "02";
@@ -90,6 +90,7 @@ void measureAndSend();
 void startTimer();
 void tick();
 double getPressure_MSLP_hPa(uint32_t altitude, double temperature);
+double getPressure_hPa();
 String doubleToString(double value, char* buffer);
 
 /*
@@ -99,7 +100,11 @@ void setup() {
   
   // start serial port:
   Serial.begin(9600);
-  
+ 
+  Serial.print("\nBegin setup.\n");
+  Serial.print("feedId: ");
+  Serial.print(feedId);
+
   // Setup DHT sensor
   dht.begin();
   // Setup BMP085
@@ -107,13 +112,19 @@ void setup() {
   
   // Setup Cosm
   if (client.connectWithMac(mac)) {
+    Serial.print("DHCP\n");
     startTimer();
   } else {
     // DHCP failed, try static IP
     if (client.connectWithIP(mac, ip)) {
+      Serial.print("Static\n");
       startTimer();
+    } else {
+      Serial.print("Failed!\n");
     }
   }
+
+  Serial.print("\nEnd setup.\n");
 }
 
 void loop() {}
@@ -123,8 +134,10 @@ void loop() {}
  */
 void startTimer()
 {
+  Serial.print("Starting timer...\n");
   MsTimer2::set(1000, tick);
   MsTimer2::start();
+  measureAndSend();
 }
 
 void tick()
@@ -141,14 +154,16 @@ void tick()
  */
 void measureAndSend()
 {
-  
+  Serial.print("Measure...\n");
   double temp = dht.readTemperature();
   double humidity = dht.readHumidity();
-  double pressure = getPressure_MSLP_hPa(STATION_ELEVATION, temp);
+  double pressure = getPressure_hPa();
   
-
+  Serial.print("...and send...\n");
   client.updateFeed(feedId, datastreamId1, temp);
+  delay(1000);
   client.updateFeed(feedId, datastreamId2, humidity);
+  delay(1000);
   client.updateFeed(feedId, datastreamId3, pressure);
 }
 
@@ -158,4 +173,10 @@ double getPressure_MSLP_hPa(uint32_t altitude, double temperature)
   int32_t pressurePa = bmp.readPressure();
   int32_t MSLP_Pa = pressurePa * exp((GRAVITY*altitude)/(GAS_CONSTANT*(temperature+KELVIN)));
   return MSLP_Pa / 100.0;
+}
+
+double getPressure_hPa()
+{
+  int32_t pressurePa = bmp.readPressure();
+  return pressurePa / 100.0;
 }
