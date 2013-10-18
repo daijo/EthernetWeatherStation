@@ -3,7 +3,7 @@
   
   by Daniel Hjort
   
-  Posts weather data to Cosm over Ethernet interface.
+  Exposes weather data as a web server over Ethernet interface.
   
  Circuit:
  * Adafruit BMP085 Pressure/temperature Sensor
@@ -31,9 +31,6 @@
  
 */
 
-#define Q(x) #x
-#define QUOTE(x) Q(x)
-
 /*
  * Physical constants and calculations
  */
@@ -46,24 +43,16 @@
 #define STATION_ELEVATION 36
 
 /*
- * Networking & Cosm
+ * Networking & Webserver
  */
 #include <SPI.h>
 #include <Ethernet.h>
-#include <Cosm.h>
 #include <MsTimer2.h>
 
 byte mac[] = {MAC_ADDRESS};
 IPAddress ip(IP_ADDRESS);
-char apiKey[] = QUOTE(APIKEY);
-long feedId = FEEDID;
-char datastreamId1[] = "01";
-char datastreamId2[] = "02";
-char datastreamId3[] = "03";
 
-uint32_t secondsSinceLastPost = 0;
-
-CosmClient client = CosmClient(apiKey);
+EthernetServer server(80);
 
 /*
  * Adafruit BMP085 sensor
@@ -86,12 +75,8 @@ DHT dht(DHTPIN, DHTTYPE);
 /*
  * Method declarations
  */
-void measureAndSend();
-void startTimer();
-void tick();
 double getPressure_MSLP_hPa(uint32_t altitude, double temperature);
 double getPressure_hPa();
-String doubleToString(double value, char* buffer);
 
 /*
  * Arduino methods
@@ -100,73 +85,70 @@ void setup() {
   
   // start serial port:
   Serial.begin(9600);
- 
   Serial.print("\nBegin setup.\n");
-  Serial.print("feedId: ");
-  Serial.print(feedId);
 
   // Setup DHT sensor
   dht.begin();
   // Setup BMP085
-  bmp.begin();  
-  
-  // Setup Cosm
-  if (client.connectWithMac(mac)) {
-    Serial.print("DHCP\n");
-    startTimer();
-  } else {
-    // DHCP failed, try static IP
-    if (client.connectWithIP(mac, ip)) {
-      Serial.print("Static\n");
-      startTimer();
-    } else {
-      Serial.print("Failed!\n");
-    }
-  }
+  bmp.begin();
+
+  // Setup server
+  Ethernet.begin(mac, ip);
+  server.begin();
+  Serial.print("Server is at ");
+  Serial.println(Ethernet.localIP());
 
   Serial.print("\nEnd setup.\n");
 }
 
-void loop() {}
-
-/*
- * Timing
- */
-void startTimer()
-{
-  Serial.print("Starting timer...\n");
-  MsTimer2::set(1000, tick);
-  MsTimer2::start();
-  measureAndSend();
-}
-
-void tick()
-{
-  if (secondsSinceLastPost > 600) {
-    secondsSinceLastPost = 0;
-    measureAndSend();
+void loop() {
+  EthernetClient client = server.available();
+  if (client) {
+    Serial.println("new client");
+    boolean currentLineIsBlank = true;
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        Serial.write(c);
+        if (c == '\n' && currentLineIsBlank) {
+          client.println("HTTP/1.1 200 OK");
+          client.println("Content-Type: text/html");
+          client.println("Connnection: close");
+          client.println();
+          client.println("<!DOCTYPE HTML>");
+          client.println("<html>");
+          client.println("<meta http-equiv=\"refresh\" content=\"5\">");
+          
+          client.print("Temperature: ");
+          client.print(dht.readTemperature());
+          client.println("<br />");
+          client.print("Humidity: ");
+          client.print(dht.readHumidity());
+          client.println("<br />"); 
+          client.print("Pressure: ");
+          client.print(getPressure_hPa());
+          client.println("<br />"); 
+          
+          client.println("</html>");
+          break;
+        }
+        if (c == '\n') {
+          currentLineIsBlank = true;
+        } 
+        else if (c != '\r') {
+          currentLineIsBlank = false;
+        }
+      }
+    }
+    delay(1);
+    client.stop();
+    Serial.println("client disonnected");
   }
-  secondsSinceLastPost++;
 }
 
 /*
  * Sensor methods
  */
-void measureAndSend()
-{
-  Serial.print("Measure...\n");
-  double temp = dht.readTemperature();
-  double humidity = dht.readHumidity();
-  double pressure = getPressure_hPa();
-  
-  Serial.print("...and send...\n");
-  client.updateFeed(feedId, datastreamId1, temp);
-  delay(1000);
-  client.updateFeed(feedId, datastreamId2, humidity);
-  delay(1000);
-  client.updateFeed(feedId, datastreamId3, pressure);
-}
-
 double getPressure_MSLP_hPa(uint32_t altitude, double temperature)
 {
   // temperature should be the mean from sea level, can approximate?
