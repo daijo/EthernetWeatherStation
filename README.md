@@ -36,6 +36,11 @@ Add a 10K resistor between pin 2 and pin 1 of the DHT
     make
     make upload
 
+# Branches
+
+ * master The Cosm version.
+ * web Web server version.
+
 # Usage
 Once powered on the Ethernet Weather Station will try to get an IP address via DHCP and connect to Cosm. If successful it will begin to post data.
 
