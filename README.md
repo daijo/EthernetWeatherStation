@@ -18,6 +18,13 @@
 | A5 | SCL of the BMP085 |
 | A4 | SDA of the BMP085  |
 | D2 | Pin 2 of the DHT |
+| GND | GND pin of nRF24L01+ |
+| VCC | VCC pin of nRF24L01+ |
+| D6 | CE pin of nRF24L01+ |
+| D7 | CSN pin of nRF24L01+ |
+| D11 | MOSI pin of nRF24L01+ |
+| D12 | MISO pin of nRF24L01+ |
+| D13 | SCK pin of nRF24L01+ |
 
 Add a 10K resistor between pin 2 and pin 1 of the DHT
 
@@ -25,8 +32,6 @@ Add a 10K resistor between pin 2 and pin 1 of the DHT
 ## Using the Makefile
 
     export STATION_ELEVATION=27 // Station elevation in meters, for MSLP calculation
-    export APIKEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    export FEEDID=XXXXX
     export MAC_ADDRESS="0x90, 0xA2, 0xDA, 0x00, 0x75, 0xED"
     export IP_ADDRESS="10,0,1,20"
 
