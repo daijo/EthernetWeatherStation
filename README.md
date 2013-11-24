@@ -43,6 +43,7 @@ Once powered on the Ethernet Weather Station will try to get an IP address via D
 
  * master The Cosm version.
  * web Web server version.
+ * rf24 A web server node getting data sent from a sensor node using nRF24L001 modules. GPL licensed.
 
 # Notes
 
