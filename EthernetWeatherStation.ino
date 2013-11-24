@@ -3,7 +3,9 @@
   
   by Daniel Hjort
   
-  Posts weather data to Cosm over Ethernet interface.
+  Receives weather data via radio and publishes as a web server over Ethernet
+  interface if operating SENSOR mode or sends weather data to its node via radio if
+  operating in BASE mode.
   
  Circuit:
  * Adafruit BMP085 Pressure/temperature Sensor
@@ -27,12 +29,28 @@
  * Arduino Ethernet board
  * alt. Ethernet (Wiznet) shield attached to pins 10, 11, 12, 13
  
- Networking based on PachubeClient sketch by Tom Igoe with input from Usman Haque and Joe Saavedra.
+ * nRF24L01+ module
  
+   Arduino  -  nRF24L01+  -  Arduino
+   GND   -  Pin 1 [*]* Pin 2 - 3.3V
+   D6    -  Pin 3  * * Pin 4 - D7
+   D11   -  Pin 5  * * Pin 6 - D13
+   D12   -  Pin 7  * * Pin 8 - NC (interrupt)
+   
 */
 
-#define Q(x) #x
-#define QUOTE(x) Q(x)
+/*
+ * Mode
+ */
+#if 0
+const bool isBase = true;
+#else
+const bool isBase = false;
+#undef MAC_ADDRESS
+#undef IP_ADDRESS
+#define MAC_ADDRESS 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+#define IP_ADDRESS 10,0,1,20
+#endif
 
 /*
  * Physical constants and calculations
@@ -46,24 +64,37 @@
 #define STATION_ELEVATION 36
 
 /*
- * Networking & Cosm
+ * Networking & Webserver
  */
+
 #include <SPI.h>
 #include <Ethernet.h>
-#include <Cosm.h>
 #include <MsTimer2.h>
 
 byte mac[] = {MAC_ADDRESS};
 IPAddress ip(IP_ADDRESS);
-char apiKey[] = QUOTE(APIKEY);
-long feedId = FEEDID;
-char datastreamId1[] = "01";
-char datastreamId2[] = "02";
-char datastreamId3[] = "03";
 
-uint32_t secondsSinceLastPost = 0;
+EthernetServer server(80);
 
-CosmClient client = CosmClient(apiKey);
+/*
+ * Outside unit saved values
+ */
+
+bool mGotUpdate = false;
+float mOutsideTemp = 0;
+float mOutsideHumidity = 0;
+float mOutsidePressure = 0;
+
+/*
+ * nRF24L01+ Radio
+ */
+#include "nRF24L01.h"
+#include "RF24.h"
+
+// Set up nRF24L01 radio on SPI bus (pins 11, 12 and 13) plus pins 6 & 7
+RF24 radio(6,7);
+// Radio pipe addresses for the 2 nodes to communicate.
+const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
 
 /*
  * Adafruit BMP085 sensor
@@ -86,12 +117,44 @@ DHT dht(DHTPIN, DHTTYPE);
 /*
  * Method declarations
  */
-void measureAndSend();
-void startTimer();
-void tick();
-double getPressure_MSLP_hPa(uint32_t altitude, double temperature);
-double getPressure_hPa();
-String doubleToString(double value, char* buffer);
+float getPressure_MSLP_hPa(uint32_t altitude, float temperature);
+float getPressure_hPa();
+
+/*
+ * Periodic send
+ */
+
+const int sendPeriod = 500;
+int nbrTicks = 0;
+
+void sendDataPacket() {
+
+  Serial.println("sendDataPacket");
+
+  float message[3];
+
+  message[0] = dht.readTemperature();
+  message[1] = dht.readHumidity();
+  message[2] = getPressure_hPa();
+
+  bool ok = radio.write(&message, sizeof(float)*3);
+
+  if (ok)
+    Serial.println("Sent!");
+  else
+    Serial.println("Failed!");
+}
+
+void tick() {
+
+  nbrTicks++;
+
+  if (nbrTicks > sendPeriod) {
+
+    sendDataPacket();
+    nbrTicks = 0;
+  }
+}
 
 /*
  * Arduino methods
@@ -100,74 +163,129 @@ void setup() {
   
   // start serial port:
   Serial.begin(9600);
- 
   Serial.print("\nBegin setup.\n");
-  Serial.print("feedId: ");
-  Serial.print(feedId);
 
   // Setup DHT sensor
   dht.begin();
   // Setup BMP085
-  bmp.begin();  
-  
-  // Setup Cosm
-  if (client.connectWithMac(mac)) {
-    Serial.print("DHCP\n");
-    startTimer();
-  } else {
-    // DHCP failed, try static IP
-    if (client.connectWithIP(mac, ip)) {
-      Serial.print("Static\n");
-      startTimer();
-    } else {
-      Serial.print("Failed!\n");
-    }
+  bmp.begin();
+
+  // Setup radio
+  radio.begin();
+  radio.setRetries(15,15); // 15 retries, 15ms between
+  radio.printDetails();
+
+  if (isBase) { // Will receive
+    radio.openWritingPipe(pipes[1]);
+    radio.openReadingPipe(1,pipes[0]);
+    radio.startListening();
+  } else { // Will send
+    radio.openWritingPipe(pipes[1]);
+    radio.openReadingPipe(1,pipes[0]);
+    
+    // Start transmition timer
+    MsTimer2::set(1000, tick);
+    MsTimer2::start();
+  }
+
+  if (isBase) { // Setup server
+    Ethernet.begin(mac, ip);
+    server.begin();
+    Serial.print("Server is at ");
+    Serial.println(Ethernet.localIP());
   }
 
   Serial.print("\nEnd setup.\n");
 }
 
-void loop() {}
+void loop() {
 
-/*
- * Timing
- */
-void startTimer()
-{
-  Serial.print("Starting timer...\n");
-  MsTimer2::set(1000, tick);
-  MsTimer2::start();
-  measureAndSend();
-}
+  if (isBase) { // Need to check for connecting clients
 
-void tick()
-{
-  if (secondsSinceLastPost > 600) {
-    secondsSinceLastPost = 0;
-    measureAndSend();
+    EthernetClient client = server.available();
+    if (client) {
+      Serial.println("New client");
+      boolean currentLineIsBlank = true;
+      while (client.connected()) {
+        if (client.available()) {
+          char c = client.read();
+          Serial.write(c);
+          if (c == '\n' && currentLineIsBlank) {
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-Type: text/html");
+            client.println("Connnection: close");
+            client.println();
+            client.println("<!DOCTYPE HTML>");
+            client.println("<html>");
+            client.println("<meta http-equiv=\"refresh\" content=\"5\">");
+            
+            client.print("Inside temperature: ");
+            client.print(dht.readTemperature());
+            client.println("<br />");
+            client.print("Inside humidity: ");
+            client.print(dht.readHumidity());
+            client.println("<br />"); 
+            client.print("Inside pressure: ");
+            client.print(getPressure_hPa());
+            client.println("<br />");
+
+            if (mGotUpdate) {
+              client.print("Outside temperature: ");
+              client.print(mOutsideTemp);
+              client.println("<br />");
+              client.print("Outside humidity: ");
+              client.print(mOutsideHumidity);
+              client.println("<br />"); 
+              client.print("Outside pressure: ");
+              client.print(mOutsidePressure);
+              client.println("<br />");
+            }
+            
+            client.println("</html>");
+            break;
+          }
+          if (c == '\n') {
+            currentLineIsBlank = true;
+          } 
+          else if (c != '\r') {
+            currentLineIsBlank = false;
+          }
+        }
+      }
+      delay(1);
+      client.stop();
+      Serial.println("Client disconnected");
+    }
   }
-  secondsSinceLastPost++;
+
+  if (isBase) { // Need to check for packets
+
+    // If there is data ready
+    if (radio.available()) {
+
+      Serial.println("Radio received packet");
+
+      // Dump the payloads until we've gotten everything
+      float message[3];
+
+      mGotUpdate = radio.read(&message, sizeof(float)*3);
+
+      if (mGotUpdate) {
+        Serial.println("Whole packet received");
+        mOutsideTemp = message[0];
+        mOutsideHumidity = message[1];
+        mOutsidePressure = message[2];
+      }
+
+      Serial.println("Radio done");
+    }
+  } // else we send sensor data packets on a timer
 }
 
 /*
  * Sensor methods
  */
-void measureAndSend()
-{
-  Serial.print("Measure...\n");
-  double temp = dht.readTemperature();
-  double humidity = dht.readHumidity();
-  double pressure = getPressure_hPa();
-  
-  Serial.print("...and send...\n");
-  client.updateFeed(feedId, datastreamId1, temp);
-  delay(1000);
-  client.updateFeed(feedId, datastreamId2, humidity);
-  delay(1000);
-  client.updateFeed(feedId, datastreamId3, pressure);
-}
-
-double getPressure_MSLP_hPa(uint32_t altitude, double temperature)
+float getPressure_MSLP_hPa(uint32_t altitude, float temperature)
 {
   // temperature should be the mean from sea level, can approximate?
   int32_t pressurePa = bmp.readPressure();
@@ -175,7 +293,7 @@ double getPressure_MSLP_hPa(uint32_t altitude, double temperature)
   return MSLP_Pa / 100.0;
 }
 
-double getPressure_hPa()
+float getPressure_hPa()
 {
   int32_t pressurePa = bmp.readPressure();
   return pressurePa / 100.0;
