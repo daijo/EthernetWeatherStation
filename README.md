@@ -41,20 +41,8 @@ Add a 10K resistor between pin 2 and pin 1 of the DHT
     make
     make upload
 
-# Branches
-
- * master The Cosm version.
- * web Web server version.
- * rf24 A web server node getting data sent from a sensor node using nRF24L001 modules. GPL licensed.
-
 # Usage
-Once powered on the Ethernet Weather Station will try to get an IP address via DHCP and connect to Cosm. If successful it will begin to post data.
-
-# Branches
-
- * master The Cosm version.
- * web Web server version.
- * rf24 A web server node getting data sent from a sensor node using nRF24L001 modules. GPL licensed.
+Once powered on the Ethernet Weather Station will try to get an IP address via DHCP and wait for HTTP clients to connect. It also listens for incoming data packets from the nRF24L01 module.
 
 # Notes
 
