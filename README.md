@@ -4,7 +4,7 @@
 * [Arduino Uno Ethernet][1] alt. Arduino with Ethernet Shield
 * [DHT22][2] temperature/humidity sensor
 * Adafruit [BMP085][3] breakout board
-* nRF25L01 module
+* nRF24L01 module
 
 # Assembly
 
@@ -20,7 +20,7 @@
 | A4 | SDA of the BMP085  |
 | D2 | Pin 2 of the DHT |
 | GND | GND pin of nRF24L01+ |
-| VCC | VCC pin of nRF24L01+ |
+| 3.3V | VCC pin of nRF24L01+ |
 | D6 | CE pin of nRF24L01+ |
 | D7 | CSN pin of nRF24L01+ |
 | D11 | MOSI pin of nRF24L01+ |
