@@ -8,7 +8,7 @@
 
 # Assembly
 
-![EthernetWeatherStation](https://github.com/daijo/EthernetWeatherStation/raw/master/assembly/EthernetWeatherStation.jpg)
+![EthernetWeatherStation](https://github.com/daijo/EthernetWeatherStation/raw/master/assembly/EthernetWeatherStation-nRF24L01-1.jpg)
 
 ## Pins assignment
 
