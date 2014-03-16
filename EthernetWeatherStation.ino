@@ -42,7 +42,7 @@
 /*
  * Mode
  */
-#if 0
+#if 1
 const bool isBase = true;
 #else
 const bool isBase = false;
@@ -84,6 +84,7 @@ bool mGotUpdate = false;
 float mOutsideTemp = 0;
 float mOutsideHumidity = 0;
 float mOutsidePressure = 0;
+float mOutsideCpm = 0;
 
 /*
  * nRF24L01+ Radio
@@ -115,6 +116,17 @@ Adafruit_BMP085 bmp;
 DHT dht(DHTPIN, DHTTYPE);
 
 /*
+ * Counter
+ */
+
+#define COUNTER_IRQ 1 // Uno/Ethernet pin 3
+#define CONVERSION_FACTOR 0.0057 // SBM-20
+volatile float mCounter = 0;
+int mNbrCounterTicks = 0;
+float mCpm = 0;
+void count();
+
+/*
  * Method declarations
  */
 float getPressure_MSLP_hPa(uint32_t altitude, float temperature);
@@ -125,19 +137,20 @@ float getPressure_hPa();
  */
 
 const int sendPeriod = 500;
-int nbrTicks = 0;
+int mNbrSendTicks = 0;
 
 void sendDataPacket() {
 
   Serial.println("sendDataPacket");
 
-  float message[3];
+  float message[4];
 
   message[0] = dht.readTemperature();
   message[1] = dht.readHumidity();
   message[2] = getPressure_hPa();
+  message[4] = mCpm;
 
-  bool ok = radio.write(&message, sizeof(float)*3);
+  bool ok = radio.write(&message, sizeof(float)*4);
 
   if (ok)
     Serial.println("Sent!");
@@ -147,12 +160,19 @@ void sendDataPacket() {
 
 void tick() {
 
-  nbrTicks++;
+  mNbrSendTicks++;
+  mNbrCounterTicks++;
 
-  if (nbrTicks > sendPeriod) {
-
+  if (!isBase
+        && mNbrSendTicks > sendPeriod) {
     sendDataPacket();
-    nbrTicks = 0;
+    mNbrSendTicks = 0;
+  }
+
+  if (mNbrCounterTicks >= 300) {
+    mCpm = mCounter / 5.0;
+    mNbrCounterTicks = 0;
+    mCounter = 0;
   }
 }
 
@@ -169,6 +189,8 @@ void setup() {
   dht.begin();
   // Setup BMP085
   bmp.begin();
+  // Setup counter
+  attachInterrupt(COUNTER_IRQ, count, FALLING);
 
   // Setup radio
   radio.begin();
@@ -182,10 +204,6 @@ void setup() {
   } else { // Will send
     radio.openWritingPipe(pipes[1]);
     radio.openReadingPipe(1,pipes[0]);
-    
-    // Start transmition timer
-    MsTimer2::set(1000, tick);
-    MsTimer2::start();
   }
 
   if (isBase) { // Setup server
@@ -194,6 +212,10 @@ void setup() {
     Serial.print("Server is at ");
     Serial.println(Ethernet.localIP());
   }
+
+  // Start timer
+  MsTimer2::set(1000, tick);
+  MsTimer2::start();
 
   Serial.print("\nEnd setup.\n");
 }
@@ -228,6 +250,12 @@ void loop() {
             client.print("Inside pressure: ");
             client.print(getPressure_hPa());
             client.println("<br />");
+            client.print("Inside CPM: ");
+            client.print(mCpm);
+            client.println("<br />");
+            client.print("Inside microSv/h: ");
+            client.print(mCpm * CONVERSION_FACTOR);
+            client.println("<br />");
 
             if (mGotUpdate) {
               client.print("Outside temperature: ");
@@ -238,6 +266,12 @@ void loop() {
               client.println("<br />"); 
               client.print("Outside pressure: ");
               client.print(mOutsidePressure);
+              client.println("<br />");
+              client.print("Outside CPM: ");
+              client.print(mOutsideCpm);
+              client.println("<br />");
+              client.print("Outside microSv/h: ");
+              client.print(mOutsideCpm * CONVERSION_FACTOR);
               client.println("<br />");
             }
             
@@ -275,6 +309,7 @@ void loop() {
         mOutsideTemp = message[0];
         mOutsideHumidity = message[1];
         mOutsidePressure = message[2];
+        mOutsideCpm = message[4];
       }
 
       Serial.println("Radio done");
@@ -297,4 +332,13 @@ float getPressure_hPa()
 {
   int32_t pressurePa = bmp.readPressure();
   return pressurePa / 100.0;
+}
+
+/*
+ * Interupts
+ */
+
+void count()
+{
+  mCounter++;
 }

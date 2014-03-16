@@ -4,6 +4,7 @@
 * [Arduino Uno Ethernet][1] alt. Arduino with Ethernet Shield
 * [DHT22][2] temperature/humidity sensor
 * Adafruit [BMP085][3] breakout board
+* [Geiger Counter Radiation Detector][8]
 * nRF24L01 module
 
 # Assembly
@@ -19,6 +20,7 @@
 | A5 | SCL of the BMP085 |
 | A4 | SDA of the BMP085  |
 | D2 | Pin 2 of the DHT |
+| D3 | Interupt pin on Geiger Counter |
 | GND | GND pin of nRF24L01+ |
 | 3.3V | VCC pin of nRF24L01+ |
 | D6 | CE pin of nRF24L01+ |
@@ -62,3 +64,4 @@ Once powered on the Ethernet Weather Station will try to get an IP address via D
   [5]: https://github.com/adafruit/DHT-sensor-library "Adafruit DHT library"
   [6]: http://arduino.cc/playground/Main/MsTimer2 "MsTimer2 library"
   [7]: https://github.com/maniacbug/RF24 "RF24 library"
+  [8]: http://www.rhelectronics.net/store/radiation-detector-geiger-counter-diy-kit-second-edition.html "Geiger Counter Radiation Detector DIY Kit Arduino Compatible ver. 2.01 w/o GM Tube"
